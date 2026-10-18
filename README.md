@@ -2,7 +2,7 @@
 
 A responsive movie discovery web app built with React. Browse trending movies, search with live suggestions, explore full movie details with cast and trailers, and keep a personal watchlist that persists between visits.
 
-**🔗 Live Demo:** []()
+**🔗 Live Demo:** [popscope.vercel.app](https://popscope.vercel.app/)
 
 ## ✨ Features
 
@@ -21,7 +21,7 @@ A responsive movie discovery web app built with React. Browse trending movies, s
 ## 🛠️ Built With
 
 - [React 19](https://react.dev/)
-- [React Router 7](https://reactrouter.com/)
+- [React Router 7](https://reactrouter.com/) (`react-router-dom`)
 - [Material UI 9](https://mui.com/)
 - [Swiper 14](https://swiperjs.com/)
 - [Axios](https://axios-http.com/)
