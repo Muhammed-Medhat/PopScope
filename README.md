@@ -15,8 +15,7 @@ A responsive movie discovery web app built with React. Browse trending movies, s
 - 💀 **Skeleton loaders** while data is loading
 - ⚠️ **Error handling** with friendly messages and retry buttons across pages
 - 🚫 Custom **404 page**
-- 📱 **Fully responsive** layout, including a full-width search on mobile
-- ⬆️ Scroll resets to the top on every route change
+- 📱 **Fully responsive**
 
 ## 🛠️ Built With
 

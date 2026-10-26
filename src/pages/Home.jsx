@@ -10,7 +10,10 @@ import {
   Button,
   Chip,
   Skeleton,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
+import { keyframes } from "@mui/material/styles";
 import StarIcon from "@mui/icons-material/Star";
 import InfoIcon from "@mui/icons-material/Info";
 import Pagination from "@mui/material/Pagination";
@@ -27,23 +30,32 @@ import "swiper/css/effect-coverflow";
 import "swiper/css/autoplay";
 
 const API_KEY = process.env.REACT_APP_TMDB_API_KEY;
+const IMG_BASE = "https://image.tmdb.org/t/p";
 
-const preloadImage = (src) => {
-  return new Promise((resolve) => {
-    if (!src) return resolve(false);
-    const img = new Image();
-    img.src = src;
-    img.onload = () => resolve(true);
-    img.onerror = () => resolve(false);
-  });
-};
+const fadeIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
+`;
+
+const NO_POSTER_IMG =
+  "data:image/svg+xml;charset=UTF-8," +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="185" height="278" viewBox="0 0 185 278">
+      <rect width="185" height="278" fill="#2a2a2a"/>
+      <text x="50%" y="50%" font-size="14" fill="#888" text-anchor="middle" dy=".3em">No Image</text>
+    </svg>
+  `);
 
 export default function Home() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   const [movies, setMovies] = useState([]);
   const [loadingMovies, setLoadingMovies] = useState(true);
   const [error, setError] = useState(null);
   const [activeMovie, setActiveMovie] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
+  const [hasSlid, setHasSlid] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Number(searchParams.get("page")) || 1;
@@ -51,12 +63,13 @@ export default function Home() {
   const fetchMovies = useCallback(() => {
     setLoadingMovies(true);
     setError(null);
+    setHasSlid(false);
 
     axios
       .get(
         `https://api.themoviedb.org/3/trending/movie/week?api_key=${API_KEY}&page=${page}`,
       )
-      .then(async (res) => {
+      .then((res) => {
         const allMovies = res?.data?.results || [];
         setMovies(allMovies);
 
@@ -64,20 +77,7 @@ export default function Home() {
         setTotalPages(total > 500 ? 500 : total);
 
         if (allMovies.length > 0) {
-          const firstMovie = allMovies[0];
-          setActiveMovie(firstMovie);
-
-          const backdropUrl = firstMovie.backdrop_path
-            ? `https://image.tmdb.org/t/p/w1280${firstMovie.backdrop_path}`
-            : null;
-          const posterUrl = firstMovie.poster_path
-            ? `https://image.tmdb.org/t/p/w342${firstMovie.poster_path}`
-            : null;
-
-          await Promise.all([
-            preloadImage(backdropUrl),
-            preloadImage(posterUrl),
-          ]);
+          setActiveMovie(allMovies[0]);
         }
 
         setLoadingMovies(false);
@@ -236,25 +236,39 @@ export default function Home() {
           </Container>
         ) : (
           <>
-            {sliderMovies.map((movie) => {
-              const isActive = activeMovie?.id === movie.id;
-              return (
-                <Box
-                  key={movie.id}
-                  sx={{
-                    position: "absolute",
-                    inset: 0,
-                    backgroundImage: `linear-gradient(to bottom, rgba(20,20,20,0.3) 0%, rgba(20,20,20,1) 100%), url(https://image.tmdb.org/t/p/w1280${movie.backdrop_path})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    opacity: isActive ? 1 : 0,
-                    transition: "opacity 0.8s ease-in-out",
-                    pointerEvents: "none",
-                    zIndex: 1,
-                  }}
-                />
-              );
-            })}
+            {activeMovie?.backdrop_path && (
+              <Box
+                key={activeMovie.id}
+                component="img"
+                src={`${IMG_BASE}/w1280${activeMovie.backdrop_path}`}
+                srcSet={`${IMG_BASE}/w780${activeMovie.backdrop_path} 780w, ${IMG_BASE}/w1280${activeMovie.backdrop_path} 1280w`}
+                sizes="100vw"
+                alt=""
+                fetchPriority="high"
+                decoding="async"
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  objectPosition: "center",
+                  pointerEvents: "none",
+                  zIndex: 0,
+                  animation: hasSlid ? `${fadeIn} 0.8s ease-in-out` : "none",
+                }}
+              />
+            )}
+            <Box
+              sx={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "linear-gradient(to bottom, rgba(20,20,20,0.3) 0%, rgba(20,20,20,1) 100%)",
+                pointerEvents: "none",
+                zIndex: 1,
+              }}
+            />
 
             <Container maxWidth="lg" sx={{ position: "relative", zIndex: 2 }}>
               <Box
@@ -335,7 +349,7 @@ export default function Home() {
                 <Box sx={{ flex: 1, width: "100%", maxWidth: "500px" }}>
                   {sliderMovies.length > 0 && (
                     <Swiper
-                      key={sliderMovies.length}
+                      key={`${page}-${sliderMovies.length}`}
                       effect={"coverflow"}
                       grabCursor={true}
                       centeredSlides={true}
@@ -356,12 +370,13 @@ export default function Home() {
                       onSlideChange={(swiper) => {
                         const realIndex = swiper.realIndex;
                         if (sliderMovies[realIndex]) {
+                          setHasSlid(true);
                           setActiveMovie(sliderMovies[realIndex]);
                         }
                       }}
                       style={{ padding: "20px 0" }}
                     >
-                      {sliderMovies.map((movie) => (
+                      {sliderMovies.map((movie, index) => (
                         <SwiperSlide
                           key={movie.id}
                           style={{
@@ -374,8 +389,16 @@ export default function Home() {
                         >
                           <Link to={`/movie/${movie.id}`}>
                             <img
-                              src={`https://image.tmdb.org/t/p/w342${movie.poster_path}`}
+                              src={
+                                movie.poster_path
+                                  ? `${IMG_BASE}/w342${movie.poster_path}`
+                                  : NO_POSTER_IMG
+                              }
                               alt={movie.title}
+                              width={200}
+                              height={300}
+                              loading={index === 0 ? "eager" : "lazy"}
+                              decoding="async"
                               style={{
                                 width: "100%",
                                 height: "100%",
@@ -399,8 +422,7 @@ export default function Home() {
         <Typography
           variant="h4"
           fontWeight="bold"
-          mb={4}
-          sx={{ borderLeft: "4px solid #e50914", pl: 2 }}
+          sx={{ borderLeft: "4px solid #e50914", pl: 2, mb: 2 }}
         >
           Trending This Week
         </Typography>
@@ -409,15 +431,68 @@ export default function Home() {
           {loadingMovies
             ? Array.from(new Array(12)).map((_, index) => (
                 <Grid key={index} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
-                  <Skeleton
-                    variant="rectangular"
-                    animation="wave"
+                  <Box
                     sx={{
+                      position: "relative",
                       aspectRatio: "2 / 3",
                       borderRadius: "10px",
+                      overflow: "hidden",
                       backgroundColor: "#1e1e1e",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
                     }}
-                  />
+                  >
+                    {/* جسم الكارد (البوستر) */}
+                    <Skeleton
+                      variant="rectangular"
+                      animation="wave"
+                      width="100%"
+                      height="100%"
+                      sx={{ bgcolor: "#262626" }}
+                    />
+
+                    {/* شكل بادج التقييم */}
+                    <Skeleton
+                      variant="rounded"
+                      animation="wave"
+                      width={44}
+                      height={22}
+                      sx={{
+                        position: "absolute",
+                        top: 8,
+                        right: 8,
+                        bgcolor: "#333",
+                        borderRadius: "6px",
+                      }}
+                    />
+
+                    {/* شكل العنوان والسنة تحت */}
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        p: 1.75,
+                        background:
+                          "linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)",
+                      }}
+                    >
+                      <Skeleton
+                        variant="text"
+                        animation="wave"
+                        width="80%"
+                        height={20}
+                        sx={{ bgcolor: "#3a3a3a" }}
+                      />
+                      <Skeleton
+                        variant="text"
+                        animation="wave"
+                        width="35%"
+                        height={16}
+                        sx={{ bgcolor: "#3a3a3a" }}
+                      />
+                    </Box>
+                  </Box>
                 </Grid>
               ))
             : movies.map((movie) => (
@@ -446,9 +521,16 @@ export default function Home() {
                     <Box
                       className="movie-poster"
                       component="img"
-                      src={`https://image.tmdb.org/t/p/w342${movie.poster_path}`}
+                      src={
+                        movie.poster_path
+                          ? `${IMG_BASE}/w342${movie.poster_path}`
+                          : NO_POSTER_IMG
+                      }
                       alt={movie.title}
+                      width={342}
+                      height={513}
                       loading="lazy"
+                      decoding="async"
                       sx={{
                         width: "100%",
                         height: "100%",
@@ -507,7 +589,7 @@ export default function Home() {
               ))}
         </Grid>
 
-        {/*Pagination */}
+        {/* Pagination */}
         <Box
           sx={{
             display: "flex",
@@ -521,8 +603,12 @@ export default function Home() {
             page={page}
             onChange={handlePageChange}
             color="error"
-            size="large"
+            size={isMobile ? "small" : "large"}
             sx={{
+              "& .MuiPagination-ul": {
+                justifyContent: "center",
+                gap: { xs: 0.4, sm: 0.25 },
+              },
               "& .MuiPaginationItem-root": {
                 color: "#fff",
                 backgroundColor: "rgba(255, 255, 255, 0.05)",
