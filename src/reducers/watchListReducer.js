@@ -4,20 +4,11 @@ export function watchListReducer(currentState, action) {
       const exist = currentState.some(
         (movie) => movie.id === action.payload.id,
       );
-      if (exist) {
-        return currentState;
-      }
-      const newState = [...currentState, action.payload];
-      window.localStorage.setItem("watchList", JSON.stringify(newState));
-      return newState;
+      if (exist) return currentState;
+      return [...currentState, action.payload];
     }
-    case "removed": {
-      const newState = currentState.filter(
-        (movie) => movie.id !== action.payload,
-      );
-      window.localStorage.setItem("watchList", JSON.stringify(newState));
-      return newState;
-    }
+    case "removed":
+      return currentState.filter((movie) => movie.id !== action.payload);
     default:
       throw new Error(`Unknown action type: ${action.type}`);
   }

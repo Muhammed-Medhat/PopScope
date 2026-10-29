@@ -6,6 +6,7 @@ import WatchListProvider from "./contexts/WatchListContext";
 import WatchList from "./pages/WatchList";
 import ScrollToTop from "./components/ScrollToTop";
 import NotFound from "./pages/NotFound";
+import Footer from "./components/Footer";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="/watchlist" element={<WatchList />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <Footer />
       </BrowserRouter>
     </WatchListProvider>
   );

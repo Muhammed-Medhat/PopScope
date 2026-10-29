@@ -1,20 +1,15 @@
-import { createContext, useContext, useReducer } from "react";
+import { createContext, useContext, useEffect, useReducer } from "react";
 import { watchListReducer } from "../reducers/watchListReducer";
+import { loadWatchList, saveWatchList } from "../utils/watchListStorage";
 
-export let WatchListContext = createContext({});
-
-const getInitialState = () => {
-  const localData = window.localStorage.getItem("watchList");
-  try {
-    return localData ? JSON.parse(localData) : [];
-  } catch (error) {
-    console.error("Error reading watchList from localStorage:", error);
-    return [];
-  }
-};
+export const WatchListContext = createContext({});
 
 export default function WatchListProvider({ children }) {
-  const [watches, dispatch] = useReducer(watchListReducer, [], getInitialState);
+  const [watches, dispatch] = useReducer(watchListReducer, [], loadWatchList);
+
+  useEffect(() => {
+    saveWatchList(watches);
+  }, [watches]);
 
   return (
     <WatchListContext.Provider value={{ watches, dispatch }}>
@@ -23,6 +18,4 @@ export default function WatchListProvider({ children }) {
   );
 }
 
-export const useWatchList = () => {
-  return useContext(WatchListContext);
-};
+export const useWatchList = () => useContext(WatchListContext);

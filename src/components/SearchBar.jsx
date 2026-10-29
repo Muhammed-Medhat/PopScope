@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import {
   Autocomplete,
   TextField,
@@ -9,12 +8,14 @@ import {
   CircularProgress,
   InputAdornment,
   Button,
+  Stack,
+  Chip,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
-
-const API_KEY = process.env.REACT_APP_TMDB_API_KEY;
+import StarIcon from "@mui/icons-material/Star";
+import { tmdbService } from "../services/modules/tmdb.service";
 
 export default function SearchBar() {
   const [options, setOptions] = useState([]);
@@ -22,6 +23,8 @@ export default function SearchBar() {
   const [loading, setLoading] = useState(false);
 
   const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
   const navigate = useNavigate();
 
   const fetchSearchResults = useCallback((query, signal) => {
@@ -35,22 +38,18 @@ export default function SearchBar() {
     setLoading(true);
     setError(false);
 
-    axios
-      .get(
-        `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}`,
-        { signal },
-      )
+    tmdbService
+      .getMovieBySearch(encodeURIComponent(query), signal)
       .then((res) => {
         setOptions(res.data.results || []);
         setLoading(false);
       })
       .catch((err) => {
-        // نتحقق أولاً أن الخطأ ليس بسبب cancellation
-        if (!axios.isCancel(err)) {
-          console.error("Error fetching search suggestions:", err);
-          setError(true);
-          setLoading(false);
-        }
+        if (signal?.aborted) return;
+        console.error("Error fetching search suggestions:", err);
+        setOptions([]);
+        setError(true);
+        setLoading(false);
       });
   }, []);
 
@@ -72,24 +71,24 @@ export default function SearchBar() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [inputValue, fetchSearchResults]);
+  }, [inputValue, fetchSearchResults, retryCount]);
 
   const handleRetry = (e) => {
     e.stopPropagation();
-    fetchSearchResults(inputValue);
+    setError(false);
+    setRetryCount((c) => c + 1);
   };
 
   return (
     <Autocomplete
       id="movie-search-autocomplete"
-      sx={{ width: { xs: "100%", sm: 350, md: 450 } }}
+      sx={{ width: { xs: "100%", sm: 380, md: 480 } }}
       filterOptions={(x) => x}
       getOptionKey={(option) => option.id}
       isOptionEqualToValue={(option, value) => option.id === value.id}
       getOptionLabel={(option) => option.title || ""}
       options={options}
       loading={loading}
-      // 3. التحكم في النص المعروض داخل المنسدلة عند وجود خطأ
       noOptionsText={
         error ? (
           <Box
@@ -97,8 +96,8 @@ export default function SearchBar() {
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              py: 1.5,
-              gap: 1,
+              py: 2,
+              gap: 1.5,
             }}
           >
             <Box
@@ -110,7 +109,7 @@ export default function SearchBar() {
               }}
             >
               <ErrorOutlinedIcon fontSize="small" />
-              <Typography variant="body2">
+              <Typography variant="body2" fontWeight={600}>
                 Failed to fetch search results
               </Typography>
             </Box>
@@ -120,13 +119,23 @@ export default function SearchBar() {
               color="error"
               startIcon={<RefreshIcon />}
               onClick={handleRetry}
-              sx={{ textTransform: "none", mt: 0.5 }}
+              sx={{
+                textTransform: "none",
+                borderRadius: "999px",
+                px: 2.5,
+                fontWeight: 700,
+              }}
             >
               Retry
             </Button>
           </Box>
         ) : (
-          "No movies found"
+          <Typography
+            variant="body2"
+            sx={{ color: "#777", textAlign: "center", py: 1.5 }}
+          >
+            No movies found
+          </Typography>
         )
       }
       onInputChange={(event, newInputValue) => {
@@ -140,20 +149,24 @@ export default function SearchBar() {
       slotProps={{
         paper: {
           sx: {
-            backgroundColor: "#1f1f1f",
+            backgroundColor: "#161616",
             color: "#fff",
-            borderRadius: 2,
+            borderRadius: 2.5,
             mt: 1,
-            boxShadow: "0 8px 16px rgba(0,0,0,0.6)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 16px 40px rgba(0,0,0,0.75)",
+            backdropFilter: "blur(12px)",
             "& .MuiAutocomplete-listbox": {
-              backgroundColor: "#1f1f1f",
+              backgroundColor: "transparent",
+              p: 0.75,
+              "&::-webkit-scrollbar": { width: 6 },
+              "&::-webkit-scrollbar-thumb": {
+                backgroundColor: "rgba(229,9,20,0.5)",
+                borderRadius: 3,
+              },
             },
-            "& .MuiAutocomplete-noOptions": {
-              color: "#fff",
-            },
-            "& .MuiAutocomplete-loading": {
-              color: "#fff",
-            },
+            "& .MuiAutocomplete-noOptions": { color: "#fff" },
+            "& .MuiAutocomplete-loading": { color: "#fff" },
           },
         },
       }}
@@ -168,11 +181,16 @@ export default function SearchBar() {
             sx={{
               display: "flex",
               alignItems: "center",
-              gap: 2,
-              p: 1.5,
-              borderBottom: "1px solid rgba(255,255,255,0.05)",
+              gap: 1.75,
+              p: 1.25,
+              mb: 0.5,
+              borderRadius: 2,
+              cursor: "pointer",
+              transition: "background-color 0.2s ease, transform 0.2s ease",
+              border: "1px solid transparent",
               "&:hover": {
-                backgroundColor: "rgba(255,255,255,0.1) !important",
+                backgroundColor: "rgba(229,9,20,0.1) !important",
+                borderColor: "rgba(229,9,20,0.3)",
               },
             }}
           >
@@ -185,22 +203,57 @@ export default function SearchBar() {
               }
               alt={option.title}
               sx={{
-                width: 40,
-                height: 60,
+                width: 44,
+                height: 64,
                 objectFit: "cover",
-                borderRadius: 1,
+                borderRadius: 1.25,
+                flexShrink: 0,
+                boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
               }}
             />
-            <Box sx={{ overflow: "hidden" }}>
-              <Typography variant="body1" fontWeight="bold" noWrap>
+            <Box sx={{ overflow: "hidden", flex: 1, minWidth: 0 }}>
+              <Typography
+                variant="body2"
+                fontWeight={700}
+                noWrap
+                sx={{ color: "#fff", mb: 0.4 }}
+              >
                 {option.title}
               </Typography>
-              <Typography variant="caption" sx={{ color: "#aaa" }}>
-                {option.release_date
-                  ? option.release_date.split("-")[0]
-                  : "N/A"}{" "}
-                | ⭐ {option.vote_average?.toFixed(1) || "0"}
-              </Typography>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ alignItems: "center", flexWrap: "wrap" }}
+              >
+                <Typography variant="caption" sx={{ color: "#9a9a9a" }}>
+                  {option.release_date
+                    ? option.release_date.split("-")[0]
+                    : "N/A"}
+                </Typography>
+                <Box
+                  sx={{
+                    width: 3,
+                    height: 3,
+                    borderRadius: "50%",
+                    backgroundColor: "#555",
+                  }}
+                />
+                <Chip
+                  icon={<StarIcon sx={{ fontSize: "12px !important" }} />}
+                  label={option.vote_average?.toFixed(1) || "0"}
+                  size="small"
+                  sx={{
+                    height: 20,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#f5c518",
+                    backgroundColor: "rgba(245,197,24,0.1)",
+                    border: "1px solid rgba(245,197,24,0.25)",
+                    "& .MuiChip-icon": { color: "#f5c518", ml: 0.5 },
+                    "& .MuiChip-label": { px: 1 },
+                  }}
+                />
+              </Stack>
             </Box>
           </Box>
         );
@@ -212,13 +265,27 @@ export default function SearchBar() {
           size="small"
           variant="outlined"
           sx={{
-            backgroundColor: "#2a2a2a",
-            borderRadius: 2,
+            backgroundColor: "rgba(255,255,255,0.05)",
+            borderRadius: "999px",
+            transition: "all 0.25s ease",
             "& .MuiOutlinedInput-root": {
               color: "#fff",
-              "& fieldset": { borderColor: "transparent" },
-              "&:hover fieldset": { borderColor: "#e50914" },
-              "&.Mui-focused fieldset": { borderColor: "#e50914" },
+              borderRadius: "999px",
+              paddingRight: "12px !important",
+              "& fieldset": {
+                borderColor: "rgba(255,255,255,0.1)",
+                transition: "border-color 0.25s ease",
+              },
+              "&:hover fieldset": {
+                borderColor: "rgba(255,255,255,0.25)",
+              },
+              "&.Mui-focused fieldset": {
+                borderColor: "#e50914",
+                borderWidth: 2,
+              },
+              "&.Mui-focused": {
+                backgroundColor: "rgba(255,255,255,0.08)",
+              },
             },
           }}
           slotProps={{
@@ -228,7 +295,9 @@ export default function SearchBar() {
               startAdornment: (
                 <>
                   <InputAdornment position="start">
-                    <SearchIcon sx={{ color: "#aaa" }} />
+                    <SearchIcon
+                      sx={{ color: "#9a9a9a", fontSize: 20, ml: 0.5 }}
+                    />
                   </InputAdornment>
                   {params.slotProps?.input?.startAdornment}
                 </>
@@ -236,7 +305,7 @@ export default function SearchBar() {
               endAdornment: (
                 <>
                   {loading ? (
-                    <CircularProgress color="error" size={20} />
+                    <CircularProgress color="error" size={18} thickness={5} />
                   ) : null}
                   {params.slotProps?.input?.endAdornment}
                 </>
