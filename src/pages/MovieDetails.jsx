@@ -1,4 +1,3 @@
-import { useState, useEffect, useCallback } from "react";
 import {
   useParams as useReactParams,
   Link,
@@ -17,7 +16,6 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { useWatchList } from "../contexts/WatchListContext";
-import { tmdbService } from "../services/modules/tmdb.service";
 
 import {
   ACCENT,
@@ -30,65 +28,25 @@ import MoviePosterSection from "../components/movie-details/MoviePosterSection";
 import MovieInfoPanel from "../components/movie-details/MovieInfoPanel";
 import CastSection from "../components/movie-details/CastSection";
 import TrailerSection from "../components/movie-details/TrailerSection";
+import { useMovieDetails } from "../components/movie-details/hooks/useMovieDetails";
 
 export default function MovieDetails() {
   const { id } = useReactParams();
   const { watches, dispatch } = useWatchList();
   const navigate = useNavigate();
 
-  const [movie, setMovie] = useState(null);
-  const [cast, setCast] = useState([]);
-  const [trailerKey, setTrailerKey] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const { data, isLoading, isError, refetch } = useMovieDetails(id);
+
+  const movie = data?.movie ?? null;
+  const cast = data?.cast ?? [];
+  const trailerKey = data?.trailerKey ?? null;
 
   const handleAdd = () => {
     dispatch({ type: "added", payload: movie });
   };
 
-  const fetchMovieDetails = useCallback(
-    (signal) => {
-      setLoading(true);
-      setError(null);
-
-      const fetchDetails = tmdbService.getMovieDetails(id, signal);
-      const fetchVideos = tmdbService.getMovieVideo(id, signal);
-
-      Promise.all([fetchDetails, fetchVideos])
-        .then(([detailsRes, videosRes]) => {
-          setMovie(detailsRes.data);
-          setCast(detailsRes.data.credits?.cast?.slice(0, 8) || []);
-
-          const trailer = videosRes.data.results?.find(
-            (vid) => vid.site === "YouTube" && vid.type === "Trailer",
-          );
-          setTrailerKey(trailer ? trailer.key : null);
-
-          setLoading(false);
-        })
-        .catch((err) => {
-          if (signal?.aborted) return;
-          console.error("Error fetching movie details:", err);
-          setError(
-            "Failed to load movie details. Please check your internet connection and try again.",
-          );
-          setLoading(false);
-        });
-    },
-    [id],
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchMovieDetails(controller.signal);
-    return () => {
-      controller.abort();
-    };
-  }, [fetchMovieDetails, retryCount]);
-
   // ================= LOADING =================
-  if (loading) {
+  if (isLoading) {
     return (
       <Box
         sx={{
@@ -148,7 +106,7 @@ export default function MovieDetails() {
   }
 
   // ================= ERROR =================
-  if (error) {
+  if (isError) {
     return (
       <Box
         sx={{
@@ -189,13 +147,14 @@ export default function MovieDetails() {
             lineHeight: 1.7,
           }}
         >
-          {error}
+          Failed to load movie details. Please check your internet connection
+          and try again.
         </Typography>
         <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap" }}>
           <Button
             variant="contained"
             startIcon={<RefreshIcon />}
-            onClick={() => setRetryCount((c) => c + 1)}
+            onClick={() => refetch()}
             sx={{
               borderRadius: "14px",
               px: 3.5,

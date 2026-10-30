@@ -2,8 +2,7 @@ import { AppBar, Toolbar, Typography, Box, Button } from "@mui/material";
 import { Link } from "react-router-dom";
 import MovieFilterIcon from "@mui/icons-material/MovieFilter";
 import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
-
-import SearchBar from "./SearchBar";
+import SearchBar from "./search/SearchBar";
 
 export default function Navbar() {
   return (

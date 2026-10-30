@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Autocomplete,
@@ -15,68 +15,25 @@ import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
 import StarIcon from "@mui/icons-material/Star";
-import { tmdbService } from "../services/modules/tmdb.service";
+import { useDebouncedValue } from "./hooks/useDebouncedValue";
+import { useMovieSearch } from "./hooks/useMovieSearch";
 
 export default function SearchBar() {
-  const [options, setOptions] = useState([]);
   const [inputValue, setInputValue] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const [error, setError] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-
   const navigate = useNavigate();
 
-  const fetchSearchResults = useCallback((query, signal) => {
-    if (!query || query.trim() === "") {
-      setOptions([]);
-      setLoading(false);
-      setError(false);
-      return;
-    }
+  const debouncedQuery = useDebouncedValue(inputValue, 300);
 
-    setLoading(true);
-    setError(false);
-
-    tmdbService
-      .getMovieBySearch(encodeURIComponent(query), signal)
-      .then((res) => {
-        setOptions(res.data.results || []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (signal?.aborted) return;
-        console.error("Error fetching search suggestions:", err);
-        setOptions([]);
-        setError(true);
-        setLoading(false);
-      });
-  }, []);
-
-  useEffect(() => {
-    if (inputValue.trim() === "") {
-      setOptions([]);
-      setLoading(false);
-      setError(false);
-      return;
-    }
-
-    const controller = new AbortController();
-
-    const timer = setTimeout(() => {
-      fetchSearchResults(inputValue, controller.signal);
-    }, 300);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [inputValue, fetchSearchResults, retryCount]);
+  const {
+    data: options = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useMovieSearch(debouncedQuery);
 
   const handleRetry = (e) => {
     e.stopPropagation();
-    setError(false);
-    setRetryCount((c) => c + 1);
+    refetch();
   };
 
   return (
@@ -88,9 +45,9 @@ export default function SearchBar() {
       isOptionEqualToValue={(option, value) => option.id === value.id}
       getOptionLabel={(option) => option.title || ""}
       options={options}
-      loading={loading}
+      loading={isLoading}
       noOptionsText={
-        error ? (
+        isError ? (
           <Box
             sx={{
               display: "flex",
@@ -304,7 +261,7 @@ export default function SearchBar() {
               ),
               endAdornment: (
                 <>
-                  {loading ? (
+                  {isLoading ? (
                     <CircularProgress color="error" size={18} thickness={5} />
                   ) : null}
                   {params.slotProps?.input?.endAdornment}
