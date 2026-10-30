@@ -65,7 +65,6 @@ The project is organized by feature: each page (or feature) owns its components,
 src/
 ├── components/
 │   ├── Navbar.jsx
-│   ├── SearchBar.jsx
 │   ├── Footer.jsx
 │   ├── ScrollToTop.jsx
 │   │
